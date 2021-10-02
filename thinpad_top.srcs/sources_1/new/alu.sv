@@ -73,7 +73,7 @@ always_comb begin : compute
             flag = 1'b0;
         end
         4'b1010: begin
-            result = (a << (b[3:0])) | (a >> ~(b[3:0]));
+            result = (a << (b[3:0])) | (a >> (5'b10000 - b[3:0]));
             flag = 1'b0;
         end
         default: begin
