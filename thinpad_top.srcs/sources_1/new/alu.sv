@@ -42,7 +42,7 @@ always_comb begin : compute
         end
         4'b0010: begin
             result = a - b;
-            flag = (a[15] & b[15] & ~result[15]) | (~a[15] & ~b[15] & result[15]);
+            flag = (~a[15] & b[15] & result[15]) | (a[15] & ~b[15] & ~result[15]);
         end
         4'b0011: begin
             result = a & b;
@@ -61,19 +61,19 @@ always_comb begin : compute
             flag = 1'b0;
         end
         4'b0111: begin
-            result = a << (b & 16'h000f);
+            result = a << b[3:0];
             flag = 1'b0;
         end
         4'b1000: begin
-            result = a >> (b & 16'h000f);
+            result = a >> b[3:0];
             flag = 1'b0;
         end
         4'b1001: begin
-            result = a >>> (b & 16'h000f);
+            result = a >>> b[3:0];
             flag = 1'b0;
         end
         4'b1010: begin
-            result = (a >> (b & 16'h000f)) | (a << (~b & 16'h000f));
+            result = (a << (b[3:0])) | (a >> ~(b[3:0]));
             flag = 1'b0;
         end
         default: begin
