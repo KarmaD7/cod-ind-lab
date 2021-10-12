@@ -80,6 +80,17 @@ module thinpad_top(
     output wire video_de           //行数据有效信号，用于区分消隐区
 );
 
+localparam GET_ADDR = 4'b0000;
+localparam GET_DATA = 4'b0001;
+localparam WRITE_BASE_0 = 4'b0010;
+localparam WRITE_BASE_1 = 4'b0011;
+localparam READ_BASE_0 = 4'b0100;
+localparam READ_BASE_1 = 4'b0101;
+localparam WRITE_EXT_0 = 4'b0110;
+localparam WRITE_EXT_1 = 4'b0111;
+localparam READ_EXT_0 = 4'b1000;
+localparam READ_EXT_1 = 4'b1001;
+
 /* =========== Demo code begin =========== */
 
 // PLL分频示例
@@ -113,21 +124,145 @@ module thinpad_top(
 //     end
 // end
 
-alu computer(
-    .inputSW(dip_sw),
-    .fout(leds),
-    .clk(clock_btn),
-    .rst(reset_btn)
+reg controler_oe;
+reg controler_we;
+reg [3:0] controler_be;
+reg [3:0] state;
+reg [31:0] init_addr;
+reg [31:0] init_data;
+reg [3:0] cnt;
+reg [31:0] sram_addr;
+reg [31:0] data_to_sram;
+wire [31:0] data_from_sram;
+
+assign leds = data_from_sram[15:0];
+
+always @(posedge clock_btn or posedge reset_btn) begin
+    if (reset_btn) begin
+        state <= GET_ADDR;
+        cnt <= 4'b0;
+        init_data <= 32'b0;
+        init_addr <= 32'b0;
+    end
+    else begin
+        case (state)
+            GET_ADDR: begin
+                init_addr <= {10'b0, dip_sw[19:0], 2'b0};
+                state <= GET_DATA;
+            end
+            GET_DATA: begin
+                init_data <= dip_sw;
+                state <= WRITE_BASE_0;
+            end
+            WRITE_BASE_0: begin
+                data_to_sram <= init_data + cnt;
+                sram_addr <= init_data + (cnt << 2);
+                controler_we <= 1;
+                state <= WRITE_BASE_1;
+            end
+            WRITE_BASE_1: begin
+                controler_we <= 0;
+                if (cnt == 9) begin
+                    cnt <= 0;
+                    state <= READ_BASE_0;
+                end
+                else begin
+                    cnt <= cnt + 1;
+                    state <= WRITE_BASE_0;
+                end
+            end
+            READ_BASE_0: begin
+                sram_addr <= init_data + (cnt << 2);
+                controler_oe <= 1;
+                state <= READ_BASE_1;
+            end
+            READ_BASE_1: begin
+                controler_oe <= 0;
+                if (cnt == 9) begin
+                    cnt <= 0;
+                    state <= WRITE_EXT_0;
+                end
+                else begin
+                    cnt <= cnt + 1;
+                    state <= READ_BASE_0;
+                end
+            end
+            WRITE_EXT_0: begin
+                data_to_sram <= init_data + cnt + 5;
+                sram_addr <= (init_data + (cnt << 2)) | (32'b1 << 22);
+                controler_we <= 1;
+                state <= WRITE_EXT_1;
+            end
+            WRITE_EXT_1: begin
+                controler_we <= 0;
+                if (cnt == 9) begin
+                    cnt <= 0;
+                    state <= READ_EXT_0;
+                end
+                else begin
+                    cnt <= cnt + 1;
+                    state <= WRITE_EXT_0;
+                end
+            end
+            READ_EXT_0: begin
+                sram_addr <= (init_data + (cnt << 2)) | (32'b1 << 22);
+                controler_oe <= 1;
+                state <= READ_EXT_1;
+            end
+            READ_EXT_1: begin
+                controler_oe <= 0;
+                if (cnt == 9) begin
+                    cnt <= 0;
+                    state <= GET_ADDR;
+                end
+                else begin
+                    cnt <= cnt + 1;
+                    state <= READ_EXT_0;
+                end
+            end
+            default: begin
+                
+            end
+        endcase
+    end
+end
+
+sram sram(
+    .clk(clk_50M),
+    .rst(reset_btn),
+
+    .we(controler_we),
+    .oe(controler_oe),
+    .be(4'b0),
+
+    .data_in(data_to_sram),
+    .data_out(data_from_sram),
+    .addr(sram_addr),
+
+    .base_ram_data_wire(base_ram_data),
+    .base_ram_addr(base_ram_addr),
+    .base_ram_be_n(base_ram_be_n),
+    .base_ram_ce_n(base_ram_ce_n),
+    .base_ram_oe_n(base_ram_oe_n),
+    .base_ram_we_n(base_ram_we_n),
+
+    .ext_ram_data_wire(ext_ram_data),
+    .ext_ram_addr(ext_ram_addr),
+    .ext_ram_be_n(ext_ram_be_n),
+    .ext_ram_ce_n(ext_ram_ce_n),
+    .ext_ram_oe_n(ext_ram_oe_n),
+    .ext_ram_we_n(ext_ram_we_n)
 );
 
-// 不使用内存、串口时，禁用其使能信号
-assign base_ram_ce_n = 1'b1;
-assign base_ram_oe_n = 1'b1;
-assign base_ram_we_n = 1'b1;
 
-assign ext_ram_ce_n = 1'b1;
-assign ext_ram_oe_n = 1'b1;
-assign ext_ram_we_n = 1'b1;
+// 不使用内存、串口时，禁用其使能信号
+// assign base_ram_ce_n = 1'b1;
+// assign base_ram_oe_n = 1'b1;
+// assign base_ram_we_n = 1'b1;
+
+// assign ext_ram_ce_n = 1'b1;
+// assign ext_ram_oe_n = 1'b1;
+// assign ext_ram_we_n = 1'b1;
 
 assign uart_rdn = 1'b1;
 assign uart_wrn = 1'b1;
@@ -145,8 +280,8 @@ assign uart_wrn = 1'b1;
 
 // 7段数码管译码器演示，将number用16进制显示在数码管上面
 // wire[7:0] number;
-// SEG7_LUT segL(.oSEG1(dpy0), .iDIG(number[3:0])); //dpy0是低位数码管
-// SEG7_LUT segH(.oSEG1(dpy1), .iDIG(number[7:4])); //dpy1是高位数码管
+SEG7_LUT segL(.oSEG1(dpy0), .iDIG(state)); //dpy0是低位数码管
+SEG7_LUT segH(.oSEG1(dpy1), .iDIG(cnt)); //dpy1是高位数码管
 
 // reg[15:0] led_bits;
 // assign leds = led_bits;
