@@ -18,11 +18,12 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-localparam IDLE = 3'b000;
+localparam INIT = 3'b000;
 localparam WRITE_DATA_ADDR = 3'b001;
 localparam WRITE_WE = 3'b010;
 localparam READ_ADDR = 3'b011;
 localparam READ_OE = 3'b100;
+localparam WAIT = 3'b101;
 
 module sram(
     input logic clk,
@@ -31,6 +32,7 @@ module sram(
     input logic we,
     input logic oe,
     input logic[3:0] be,
+    input logic user_doing,
 
     input logic[31:0] data_in,
     output logic[31:0] data_out,
@@ -56,6 +58,9 @@ logic data_z;
 logic [31:0] base_ram_data;
 logic [31:0] ext_ram_data;
 logic [2:0]  state;
+// logic done;
+// logic inner_oe = done ? ;
+// logic inner_we = done ? ;
 
 assign base_ram_data_wire =  data_z ? 32'bz : base_ram_data;
 assign ext_ram_data_wire =  data_z ? 32'bz : ext_ram_data;
@@ -66,7 +71,7 @@ assign ext_ram_be_n = 4'b0;
 
 always_ff @( posedge clk or posedge rst) begin
     if (rst) begin
-        state <= IDLE;
+        state <= INIT;
         data_z <= 1'b1;
         data_out <= 32'b0;
         base_ram_data <= 32'b0;
@@ -78,7 +83,7 @@ always_ff @( posedge clk or posedge rst) begin
     end
     else begin
         case (state)
-            IDLE: begin
+            INIT: begin
                 data_z <= 1'b1;
                 base_ram_data <= 32'b0;
                 ext_ram_data <= 32'b0;
@@ -86,8 +91,6 @@ always_ff @( posedge clk or posedge rst) begin
                 base_ram_oe_n <= 1'b1;
                 ext_ram_we_n <= 1'b1;
                 ext_ram_oe_n <= 1'b1;
-                base_ram_be_n <= 4'b0;
-                ext_ram_be_n <= 4'b0;
                 if (we) begin
                     state <= WRITE_DATA_ADDR;
                 end 
@@ -116,7 +119,7 @@ always_ff @( posedge clk or posedge rst) begin
                 else begin
                     ext_ram_we_n <= 1'b0;
                 end
-                state <= IDLE;
+                state <= WAIT;
             end
             READ_ADDR: begin
                 data_z <= 1'b1;
@@ -135,7 +138,21 @@ always_ff @( posedge clk or posedge rst) begin
                 else begin
                     ext_ram_oe_n <= 1'b0;
                 end
-                state <= IDLE;
+                state <= WAIT;
+            end
+            WAIT: begin
+                if (~base_ram_ce_n) begin
+                    data_out <= base_ram_data_wire;
+                end
+                else begin
+                    data_out <= ext_ram_data_wire;
+                end
+                if (user_doing) begin
+                    state <= INIT;
+                end 
+                else begin
+                    
+                end
             end
             default: begin 
             end 
