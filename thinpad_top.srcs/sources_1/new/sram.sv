@@ -23,7 +23,8 @@ localparam WRITE_DATA_ADDR = 3'b001;
 localparam WRITE_WE = 3'b010;
 localparam READ_ADDR = 3'b011;
 localparam READ_OE = 3'b100;
-localparam WAIT = 3'b101;
+localparam READ_RECOVER = 3'b101;
+localparam WAIT = 3'b110;
 
 module sram(
     input logic clk,
@@ -84,9 +85,6 @@ always_ff @( posedge clk or posedge rst) begin
     else begin
         case (state)
             INIT: begin
-                data_z <= 1'b1;
-                base_ram_data <= 32'b0;
-                ext_ram_data <= 32'b0;
                 base_ram_we_n <= 1'b1;
                 base_ram_oe_n <= 1'b1;
                 ext_ram_we_n <= 1'b1;
@@ -140,12 +138,17 @@ always_ff @( posedge clk or posedge rst) begin
                 end
                 state <= WAIT;
             end
+            // READ_RECOVER: begin
+            //     state <= WAIT;
+            // end
             WAIT: begin
                 if (~base_ram_ce_n) begin
                     data_out <= base_ram_data_wire;
+                    // base_ram_oe_n <= 1;
                 end
                 else begin
                     data_out <= ext_ram_data_wire;
+                    // ext_ram_oe_n <= 1;
                 end
                 if (user_doing) begin
                     state <= INIT;

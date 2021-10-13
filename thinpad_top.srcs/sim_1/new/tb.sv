@@ -64,9 +64,9 @@ initial begin
             dip_sw = 32'b0;
         else 
             dip_sw = 32'hAA;
-        #100; //等待100ns
+        #200; //等待100ns
         clock_btn = 1; //按下手工时钟按钮
-        #100; //等待100ns
+        #200; //等待100ns
         clock_btn = 0; //松开手工时钟按钮
     end
     // 模拟PC通过串口发送字符
