@@ -18,13 +18,19 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-localparam INIT = 3'b000;
-localparam WRITE_DATA_ADDR = 3'b001;
-localparam WRITE_WE = 3'b010;
-localparam READ_ADDR = 3'b011;
-localparam READ_OE = 3'b100;
-localparam READ_RECOVER = 3'b101;
-localparam WAIT = 3'b110;
+localparam INIT = 4'b000;
+localparam WRITE_DATA_ADDR = 4'b0001;
+localparam WRITE_WE = 4'b0010;
+localparam READ_ADDR = 4'b0011;
+localparam READ_OE = 4'b0100;
+localparam READ_RECOVER = 4'b0101;
+localparam WAIT = 4'b0110;
+localparam READ_UART_1 = 4'b0111;
+localparam READ_UART_2 = 4'b1000;
+localparam WRITE_UART_1 = 4'b1000;
+localparam WRITE_UART_2 = 4'b1001;
+localparam WRITE_UART_3 = 4'b1010;
+localparam WRITE_UART_4 = 4'b1011;
 
 module sram(
     input logic clk,
@@ -38,6 +44,7 @@ module sram(
     input logic[31:0] data_in,
     output logic[31:0] data_out,
     input logic[31:0] addr,
+    output logic done, // use for uart
 
         //BaseRAM信号
     inout logic[31:0] base_ram_data_wire,  //BaseRAM数据，低8位与CPLD串口控制器共享
@@ -52,13 +59,20 @@ module sram(
     output logic[3:0] ext_ram_be_n,  //BaseRAM字节使能，低有效。如果不使用字节使能，请保持为0                
     output logic ext_ram_ce_n,       //ExtRAM片选，低有效
     output logic ext_ram_oe_n,       //ExtRAM读使能，低有效
-    output logic ext_ram_we_n       //ExtRAM写使能，低有效
+    output logic ext_ram_we_n,       //ExtRAM写使能，低有效
+
+    output logic uart_rdn,         //读串口信号，低有效
+    output logic uart_wrn,         //写串口信号，低有效
+    input logic uart_dataready,    //串口数据准备好
+    input logic uart_tbre,         //发送数据标志
+    input logic uart_tsre         //数据发送完毕标志
 );
 
 logic data_z;
 logic [31:0] base_ram_data;
 logic [31:0] ext_ram_data;
-logic [2:0]  state;
+logic [3:0]  state;
+logic use_uart;
 // logic done;
 // logic inner_oe = done ? ;
 // logic inner_we = done ? ;
@@ -69,6 +83,7 @@ assign base_ram_ce_n = addr[22]; // 21-2 real address, 1-0 align, 22 0-base, 1-e
 assign ext_ram_ce_n = ~addr[22];
 assign base_ram_be_n = 4'b0;
 assign ext_ram_be_n = 4'b0;
+assign use_uart = addr[28];
 
 always_ff @( posedge clk or posedge rst) begin
     if (rst) begin
@@ -89,6 +104,12 @@ always_ff @( posedge clk or posedge rst) begin
                 base_ram_oe_n <= 1'b1;
                 ext_ram_we_n <= 1'b1;
                 ext_ram_oe_n <= 1'b1;
+                if (use_uart) begin
+                    if (we) begin
+                    end
+                    else if (oe) begin
+                    end
+                end
                 if (we) begin
                     state <= WRITE_DATA_ADDR;
                 end 
@@ -155,6 +176,45 @@ always_ff @( posedge clk or posedge rst) begin
                 end 
                 else begin
                     
+                end
+            end
+            READ_UART_1: begin
+                if (~uart_dataready) begin
+                    state <= INIT;
+                end
+                else begin
+                    // data_z <= 1'b1;
+                    uart_rdn <= 1'b0;
+                    state <= READ_UART_2;
+                end
+            end
+            READ_UART_2: begin
+                data_out <= {24'b0, base_ram_data_wire[7:0]};
+                done <= 1'b1;
+                state <= INIT;
+            end
+            WRITE_UART_1: begin
+                data_z <= 1'b0;
+                base_ram_data <= data_in;
+                uart_wrn <= 1'b0;
+            end
+            WRITE_UART_2: begin
+                uart_wrn <= 1'b1;
+                state <= WRITE_UART_3;
+            end
+            WRITE_UART_3: begin
+                if (uart_tbre) begin
+                    state <= WRITE_UART_4;
+                end
+                else begin
+                end
+            end
+            WRITE_UART_4: begin
+                if (uart_tsre) begin
+                    state <= INIT;
+                    done <= 1'b1;
+                end
+                else begin
                 end
             end
             default: begin 

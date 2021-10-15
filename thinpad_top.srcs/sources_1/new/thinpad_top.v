@@ -90,6 +90,10 @@ localparam WRITE_EXT_0 = 4'b0110;
 localparam WRITE_EXT_1 = 4'b0111;
 localparam READ_EXT_0 = 4'b1000;
 localparam READ_EXT_1 = 4'b1001;
+localparam READ_UART = 4'b1010;
+localparam WRITE_UART = 4'b1011;
+
+localparam UART_ADDR = 32'h10000000;
 
 /* =========== Demo code begin =========== */
 
@@ -136,11 +140,12 @@ reg [31:0] data_to_sram;
 reg [31:0] reg_leds;
 wire [31:0] data_from_sram;
 reg doing;
+wire done;
 
 assign leds = reg_leds[15:0];
 assign controler_be = 4'b0;
 
-always @(posedge clock_btn or posedge reset_btn) begin
+always @(posedge clk_50M or posedge reset_btn) begin
     if (reset_btn) begin
         state <= GET_ADDR;
         cnt <= 4'b0;
@@ -155,7 +160,9 @@ always @(posedge clock_btn or posedge reset_btn) begin
         case (state)
             GET_ADDR: begin
                 init_addr <= {10'b0, dip_sw[19:0], 2'b0};
-                state <= GET_DATA;
+                sram_addr <= UART_ADDR;
+                controler_oe <= 1;
+                state <= READ_UART;
             end
             GET_DATA: begin
                 init_data <= dip_sw;
@@ -163,7 +170,7 @@ always @(posedge clock_btn or posedge reset_btn) begin
             end
             WRITE_BASE_0: begin
                 doing <= 0;
-                data_to_sram <= init_data + cnt;
+                data_to_sram <= reg_leds;
                 sram_addr <= init_addr + (cnt << 2);
                 controler_we <= 1;
                 state <= WRITE_BASE_1;
@@ -237,6 +244,19 @@ always @(posedge clock_btn or posedge reset_btn) begin
                     state <= READ_EXT_0;
                 end
             end
+            READ_UART: begin
+                if (done) begin
+                    reg_leds <= data_from_sram;
+                    controler_oe <= 0;
+                    state <= WRITE_BASE_0;
+                end
+                else begin
+                end
+            end
+            WRITE_UART: begin
+                if (done) begin
+                end
+            end
             default: begin
                 
             end
@@ -256,6 +276,7 @@ sram sram(
     .data_in(data_to_sram),
     .data_out(data_from_sram),
     .addr(sram_addr),
+    .done(done),
 
     .base_ram_data_wire(base_ram_data),
     .base_ram_addr(base_ram_addr),
@@ -269,7 +290,13 @@ sram sram(
     .ext_ram_be_n(ext_ram_be_n),
     .ext_ram_ce_n(ext_ram_ce_n),
     .ext_ram_oe_n(ext_ram_oe_n),
-    .ext_ram_we_n(ext_ram_we_n)
+    .ext_ram_we_n(ext_ram_we_n),
+    
+    .uart_dataready(uart_dataready),
+    .uart_wrn(uart_wrn),
+    .uart_rdn(uart_rdn),
+    .uart_tbre(uart_tbre),
+    .uart_tsre(uart_tsre)
 );
 
 
