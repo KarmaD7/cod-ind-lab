@@ -61,18 +61,16 @@ initial begin
     reset_btn = 0;
     for (integer i = 0; i < 200; i = i+1) begin
         if (i == 0) 
-            dip_sw = 32'b0;
-        else 
             dip_sw = 32'hAA;
-        #200; //等待100ns
-        clock_btn = 1; //按下手工时钟按钮
-        #200; //等待100ns
-        clock_btn = 0; //松开手工时钟按钮
+        // #200; //等待100ns
+        // clock_btn = 1; //按下手工时钟按钮
+        // #200; //等待100ns
+        // clock_btn = 0; //松开手工时钟按钮
     end
     // 模拟PC通过串口发送字符
-    // cpld.pc_send_byte(8'h32);
-    // #10000;
-    // cpld.pc_send_byte(8'h33);
+    cpld.pc_send_byte(8'h32);
+    #10000;
+    cpld.pc_send_byte(8'h33);
 end
 
 // 待测试用户设计

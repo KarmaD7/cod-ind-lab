@@ -92,6 +92,7 @@ localparam READ_EXT_0 = 4'b1000;
 localparam READ_EXT_1 = 4'b1001;
 localparam READ_UART = 4'b1010;
 localparam WRITE_UART = 4'b1011;
+// localparam WAIT = 4'b1011;
 
 localparam UART_ADDR = 32'h10000000;
 
@@ -184,7 +185,8 @@ always @(posedge clk_50M or posedge reset_btn) begin
                 end
                 else begin
                     cnt <= cnt + 1;
-                    state <= WRITE_BASE_0;
+                    sram_addr <= UART_ADDR;
+                    state <= READ_UART;
                 end
             end
             READ_BASE_0: begin
@@ -199,49 +201,12 @@ always @(posedge clk_50M or posedge reset_btn) begin
                 controler_oe <= 0;
                 if (cnt == 9) begin
                     cnt <= 0;
-                    state <= WRITE_EXT_0;
+                    state <= READ_UART;
                 end
                 else begin
                     cnt <= cnt + 1;
-                    state <= READ_BASE_0;
-                end
-            end
-            WRITE_EXT_0: begin
-                doing <= 0;
-                data_to_sram <= init_data + cnt + 5;
-                sram_addr <= (init_addr + (cnt << 2)) | (32'b1 << 22);
-                controler_we <= 1;
-                state <= WRITE_EXT_1;
-            end
-            WRITE_EXT_1: begin
-                doing <= 1;
-                controler_we <= 0;
-                if (cnt == 9) begin
-                    cnt <= 0;
-                    state <= READ_EXT_0;
-                end
-                else begin
-                    cnt <= cnt + 1;
-                    state <= WRITE_EXT_0;
-                end
-            end
-            READ_EXT_0: begin
-                doing <= 0;
-                sram_addr <= (init_addr + (cnt << 2)) | (32'b1 << 22);
-                controler_oe <= 1;
-                state <= READ_EXT_1;
-            end
-            READ_EXT_1: begin
-                doing <= 1;
-                reg_leds <= data_from_sram;
-                controler_oe <= 0;
-                if (cnt == 9) begin
-                    cnt <= 0;
-                    state <= GET_ADDR;
-                end
-                else begin
-                    cnt <= cnt + 1;
-                    state <= READ_EXT_0;
+                    controler_we <= 1;
+                    state <= WRITE_UART;
                 end
             end
             READ_UART: begin
@@ -255,6 +220,10 @@ always @(posedge clk_50M or posedge reset_btn) begin
             end
             WRITE_UART: begin
                 if (done) begin
+                    controler_we <= 0;
+                    state <= READ_BASE_0;
+                end
+                else begin
                 end
             end
             default: begin
@@ -305,12 +274,12 @@ sram sram(
 // assign base_ram_oe_n = 1'b1;
 // assign base_ram_we_n = 1'b1;
 
-// assign ext_ram_ce_n = 1'b1;
-// assign ext_ram_oe_n = 1'b1;
-// assign ext_ram_we_n = 1'b1;
+assign ext_ram_ce_n = 1'b1;
+assign ext_ram_oe_n = 1'b1;
+assign ext_ram_we_n = 1'b1;
 
-assign uart_rdn = 1'b1;
-assign uart_wrn = 1'b1;
+// assign uart_rdn = 1'b1;
+// assign uart_wrn = 1'b1;
 
 // 数码管连接关系示意图，dpy1同理
 // p=dpy0[0] // ---a---

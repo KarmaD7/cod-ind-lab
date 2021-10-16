@@ -104,13 +104,17 @@ always_ff @( posedge clk or posedge rst) begin
                 base_ram_oe_n <= 1'b1;
                 ext_ram_we_n <= 1'b1;
                 ext_ram_oe_n <= 1'b1;
+                uart_rdn <= 1'b1;
+                uart_wrn <= 1'b1;
                 if (use_uart) begin
                     if (we) begin
+                        state <= WRITE_UART_1;
                     end
                     else if (oe) begin
+                        state <= READ_UART_1;
                     end
                 end
-                if (we) begin
+                else if (we) begin
                     state <= WRITE_DATA_ADDR;
                 end 
                 else if (oe) begin
