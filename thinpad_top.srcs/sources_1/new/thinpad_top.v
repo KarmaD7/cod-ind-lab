@@ -131,7 +131,9 @@ localparam UART_ADDR = 32'h10000000;
 
 reg controler_oe;
 reg controler_we;
+reg controler_ce;
 wire [3:0] controler_be;
+wire controler_done;
 reg [3:0] state;
 reg [31:0] init_addr;
 reg [31:0] init_data;
@@ -155,7 +157,7 @@ always @(posedge clk_50M or posedge reset_btn) begin
         reg_leds <= 32'b0;
         controler_oe <= 0;
         controler_we <= 0;
-        doing <= 1'b0;
+        controler_ce <= 0;
     end
     else begin
         case (state)
@@ -170,48 +172,55 @@ always @(posedge clk_50M or posedge reset_btn) begin
                 state <= WRITE_BASE_0;
             end
             WRITE_BASE_0: begin
-                doing <= 0;
+                controler_ce <= 1;
                 data_to_sram <= reg_leds;
                 sram_addr <= init_addr + (cnt << 2);
                 controler_we <= 1;
                 state <= WRITE_BASE_1;
             end
             WRITE_BASE_1: begin
-                doing <= 1;
-                controler_we <= 0;
-                if (cnt == 9) begin
-                    cnt <= 0;
-                    state <= READ_BASE_0;
-                end
-                else begin
-                    cnt <= cnt + 1;
-                    sram_addr <= UART_ADDR;
-                    state <= READ_UART;
+                if (controler_done) begin
+                    controler_ce <= 0;
+                    controler_we <= 0;
+                    if (cnt == 9) begin
+                        cnt <= 0;
+                        state <= READ_BASE_0;
+                    end
+                    else begin
+                        cnt <= cnt + 1;
+                        sram_addr <= UART_ADDR;
+                        state <= READ_UART;
+                    end
                 end
             end
             READ_BASE_0: begin
+                controler_ce <= 1;
                 doing <= 0;
                 sram_addr <= init_addr + (cnt << 2);
                 controler_oe <= 1;
                 state <= READ_BASE_1;
             end
             READ_BASE_1: begin
-                reg_leds <= data_from_sram;
-                doing <= 1;
-                controler_oe <= 0;
-                if (cnt == 9) begin
-                    cnt <= 0;
-                    state <= READ_UART;
-                end
-                else begin
-                    cnt <= cnt + 1;
-                    controler_we <= 1;
-                    state <= WRITE_UART;
+                if (controler_done) begin
+                    reg_leds <= data_from_sram;
+                    controler_ce <= 0;
+                    controler_oe <= 0;
+                    if (cnt == 9) begin
+                        cnt <= 0;
+                        state <= READ_UART;
+                    end
+                    else begin
+                        cnt <= cnt + 1;
+                        controler_we <= 1;
+                        data_to_sram <= data_from_sram;
+                        state <= WRITE_UART;
+                    end
                 end
             end
             READ_UART: begin
-                if (done) begin
+                if (controler_done) begin
                     reg_leds <= data_from_sram;
+                    controler_ce <= 0;
                     controler_oe <= 0;
                     state <= WRITE_BASE_0;
                 end
@@ -219,7 +228,8 @@ always @(posedge clk_50M or posedge reset_btn) begin
                 end
             end
             WRITE_UART: begin
-                if (done) begin
+                if (controler_done) begin
+                    controler_ce <= 0;
                     controler_we <= 0;
                     state <= READ_BASE_0;
                 end
@@ -240,12 +250,12 @@ sram sram(
     .we(controler_we),
     .oe(controler_oe),
     .be(4'b0),
-    .user_doing(doing),
+    .ce(controler_ce),
 
     .data_in(data_to_sram),
     .data_out(data_from_sram),
     .addr(sram_addr),
-    .done(done),
+    .done(controler_done),
 
     .base_ram_data_wire(base_ram_data),
     .base_ram_addr(base_ram_addr),

@@ -18,19 +18,17 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-localparam INIT = 4'b000;
-localparam WRITE_DATA_ADDR = 4'b0001;
-localparam WRITE_WE = 4'b0010;
-localparam READ_ADDR = 4'b0011;
-localparam READ_OE = 4'b0100;
-localparam READ_RECOVER = 4'b0101;
-localparam WAIT = 4'b0110;
-localparam READ_UART_1 = 4'b0111;
-localparam READ_UART_2 = 4'b1000;
-localparam WRITE_UART_1 = 4'b1000;
-localparam WRITE_UART_2 = 4'b1001;
-localparam WRITE_UART_3 = 4'b1010;
-localparam WRITE_UART_4 = 4'b1011;
+localparam INIT = 4'b0000;
+localparam WRITE_WE = 4'b0001;
+localparam WRITE_DONE  = 4'b0010;
+localparam READ_OE = 4'b0011;
+localparam READ_DONE = 4'b0100;
+localparam READ_UART_1 = 4'b0101;
+localparam READ_UART_2 = 4'b0110;
+localparam WRITE_UART_1 = 4'b0111;
+localparam WRITE_UART_2 = 4'b1000;
+localparam WRITE_UART_3 = 4'b1001;
+localparam WRITE_UART_4 = 4'b1010;
 
 module sram(
     input logic clk,
@@ -39,7 +37,7 @@ module sram(
     input logic we,
     input logic oe,
     input logic[3:0] be,
-    input logic user_doing,
+    input logic ce, // 0 for refresh
 
     input logic[31:0] data_in,
     output logic[31:0] data_out,
@@ -73,9 +71,6 @@ logic [31:0] base_ram_data;
 logic [31:0] ext_ram_data;
 logic [3:0]  state;
 logic use_uart;
-// logic done;
-// logic inner_oe = done ? ;
-// logic inner_we = done ? ;
 
 assign base_ram_data_wire =  data_z ? 32'bz : base_ram_data;
 assign ext_ram_data_wire =  data_z ? 32'bz : ext_ram_data;
@@ -96,6 +91,7 @@ always_ff @( posedge clk or posedge rst) begin
         base_ram_oe_n <= 1'b1;
         ext_ram_we_n <= 1'b1;
         ext_ram_oe_n <= 1'b1;
+        done <= 1'b0;
     end
     else begin
         case (state)
@@ -106,35 +102,51 @@ always_ff @( posedge clk or posedge rst) begin
                 ext_ram_oe_n <= 1'b1;
                 uart_rdn <= 1'b1;
                 uart_wrn <= 1'b1;
-                if (use_uart) begin
-                    if (we) begin
-                        state <= WRITE_UART_1;
-                    end
-                    else if (oe) begin
-                        state <= READ_UART_1;
-                    end
+                if (~ce) begin
+                    done <= 0;
                 end
-                else if (we) begin
-                    state <= WRITE_DATA_ADDR;
-                end 
-                else if (oe) begin
-                    state <= READ_ADDR;
+                else begin
+                end
+                if (~done) begin                    
+                    if (use_uart) begin
+                        if (we) begin
+                            state <= WRITE_UART_1;
+                        end
+                        else if (oe) begin
+                            state <= READ_UART_1;
+                        end
+                    end
+                    else if (we) begin
+                        base_ram_oe_n <= 1'b1;
+                        ext_ram_oe_n <= 1'b1;
+                        data_z <= 1'b0;
+                        if (~base_ram_ce_n) begin
+                            base_ram_data <= data_in;
+                            base_ram_addr <= addr[21:2];
+                        end
+                        else begin
+                            ext_ram_data <= data_in;
+                            ext_ram_addr <= addr[21:2];
+                        end
+                        state <= WRITE_WE;
+                    end 
+                    else if (oe) begin
+                        base_ram_oe_n <= 1'b1;
+                        ext_ram_oe_n <= 1'b1;
+                        data_z <= 1'b1;
+                        if (~base_ram_ce_n) begin
+                            base_ram_addr <= addr[21:2];
+                        end
+                        else begin
+                            ext_ram_addr <= addr[21:2];
+                        end
+
+                        state <= READ_OE;
+                    end
                 end
                 else begin
                 end
             end 
-            WRITE_DATA_ADDR: begin
-                data_z <= 1'b0;
-                if (~base_ram_ce_n) begin
-                    base_ram_data <= data_in;
-                    base_ram_addr <= addr[21:2];
-                end
-                else begin
-                    ext_ram_data <= data_in;
-                    ext_ram_addr <= addr[21:2];
-                end
-                state <= WRITE_WE;
-            end
             WRITE_WE: begin
                 if (~base_ram_ce_n) begin
                     base_ram_we_n <= 1'b0;
@@ -142,17 +154,11 @@ always_ff @( posedge clk or posedge rst) begin
                 else begin
                     ext_ram_we_n <= 1'b0;
                 end
-                state <= WAIT;
+                state <= WRITE_DONE;
             end
-            READ_ADDR: begin
-                data_z <= 1'b1;
-                if (~base_ram_ce_n) begin
-                    base_ram_addr <= addr[21:2];
-                end
-                else begin
-                    ext_ram_addr <= addr[21:2];
-                end
-                state <= READ_OE;
+            WRITE_DONE: begin
+                done <= 1;
+                state <= INIT;
             end
             READ_OE: begin
                 if (~base_ram_ce_n) begin
@@ -161,33 +167,24 @@ always_ff @( posedge clk or posedge rst) begin
                 else begin
                     ext_ram_oe_n <= 1'b0;
                 end
-                state <= WAIT;
+                done <= 1;
+                state <= READ_DONE;
             end
-            // READ_RECOVER: begin
-            //     state <= WAIT;
-            // end
-            WAIT: begin
+            READ_DONE: begin
+                done <= 1;
                 if (~base_ram_ce_n) begin
                     data_out <= base_ram_data_wire;
-                    // base_ram_oe_n <= 1;
                 end
                 else begin
                     data_out <= ext_ram_data_wire;
-                    // ext_ram_oe_n <= 1;
                 end
-                if (user_doing) begin
-                    state <= INIT;
-                end 
-                else begin
-                    
-                end
+                state <= INIT;
             end
             READ_UART_1: begin
                 if (~uart_dataready) begin
-                    state <= INIT;
+                    state <= READ_UART_1;
                 end
                 else begin
-                    // data_z <= 1'b1;
                     uart_rdn <= 1'b0;
                     state <= READ_UART_2;
                 end
