@@ -71,6 +71,10 @@ initial begin
     cpld.pc_send_byte(8'h32);
     #10000;
     cpld.pc_send_byte(8'h33);
+    #10000;
+    cpld.pc_send_byte(8'h34);
+    #10000;
+    cpld.pc_send_byte(8'h35);
 end
 
 // 待测试用户设计

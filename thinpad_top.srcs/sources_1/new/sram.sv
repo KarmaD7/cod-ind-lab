@@ -37,12 +37,14 @@ module sram(
     input logic we,
     input logic oe,
     input logic[3:0] be,
-    input logic ce, // 0 for refresh
+    input logic sram_ce, // 0 for refresh
+    input logic uart_ce,
 
     input logic[31:0] data_in,
     output logic[31:0] data_out,
     input logic[31:0] addr,
-    output logic done, // use for uart
+    output logic sram_done,
+    output logic uart_done,
 
         //BaseRAM信号
     inout logic[31:0] base_ram_data_wire,  //BaseRAM数据，低8位与CPLD串口控制器共享
@@ -74,8 +76,8 @@ logic use_uart;
 
 assign base_ram_data_wire =  data_z ? 32'bz : base_ram_data;
 assign ext_ram_data_wire =  data_z ? 32'bz : ext_ram_data;
-assign base_ram_ce_n = addr[22]; // 21-2 real address, 1-0 align, 22 0-base, 1-ext
-assign ext_ram_ce_n = ~addr[22];
+assign base_ram_ce_n = use_uart ? 1 : addr[22]; // 21-2 real address, 1-0 align, 22 0-base, 1-ext
+assign ext_ram_ce_n = use_uart ? 1 : ~addr[22];
 assign base_ram_be_n = 4'b0;
 assign ext_ram_be_n = 4'b0;
 assign use_uart = addr[28];
@@ -91,7 +93,8 @@ always_ff @( posedge clk or posedge rst) begin
         base_ram_oe_n <= 1'b1;
         ext_ram_we_n <= 1'b1;
         ext_ram_oe_n <= 1'b1;
-        done <= 1'b0;
+        sram_done <= 1'b0;
+        uart_done <= 1'b0;
     end
     else begin
         case (state)
@@ -102,51 +105,64 @@ always_ff @( posedge clk or posedge rst) begin
                 ext_ram_oe_n <= 1'b1;
                 uart_rdn <= 1'b1;
                 uart_wrn <= 1'b1;
-                if (~ce) begin
-                    done <= 0;
+                if (~sram_ce) begin
+                    sram_done <= 0;
                 end
                 else begin
                 end
-                if (~done) begin                    
-                    if (use_uart) begin
+                if (~uart_ce) begin
+                    uart_done <= 0;
+                end
+                else begin
+                end                 
+                if (use_uart) begin
+                    if (~uart_done) begin  
                         if (we) begin
+                            data_z <= 1'b0;
+                            base_ram_data <= data_in;
                             state <= WRITE_UART_1;
                         end
                         else if (oe) begin
+                            data_z <= 1'b1;
                             state <= READ_UART_1;
                         end
                     end
-                    else if (we) begin
-                        base_ram_oe_n <= 1'b1;
-                        ext_ram_oe_n <= 1'b1;
-                        data_z <= 1'b0;
-                        if (~base_ram_ce_n) begin
-                            base_ram_data <= data_in;
-                            base_ram_addr <= addr[21:2];
-                        end
-                        else begin
-                            ext_ram_data <= data_in;
-                            ext_ram_addr <= addr[21:2];
-                        end
-                        state <= WRITE_WE;
-                    end 
-                    else if (oe) begin
-                        base_ram_oe_n <= 1'b1;
-                        ext_ram_oe_n <= 1'b1;
-                        data_z <= 1'b1;
-                        if (~base_ram_ce_n) begin
-                            base_ram_addr <= addr[21:2];
-                        end
-                        else begin
-                            ext_ram_addr <= addr[21:2];
-                        end
-
-                        state <= READ_OE;
+                    else begin
                     end
                 end
                 else begin
+                    if (~sram_done) begin
+                        if (we) begin
+                            base_ram_oe_n <= 1'b1;
+                            ext_ram_oe_n <= 1'b1;
+                            data_z <= 1'b0;
+                            if (~base_ram_ce_n) begin
+                                base_ram_data <= data_in;
+                                base_ram_addr <= addr[21:2];
+                            end
+                            else begin
+                                ext_ram_data <= data_in;
+                                ext_ram_addr <= addr[21:2];
+                            end
+                            state <= WRITE_WE;
+                        end 
+                        else if (oe) begin
+                            base_ram_oe_n <= 1'b1;
+                            ext_ram_oe_n <= 1'b1;
+                            data_z <= 1'b1;
+                            if (~base_ram_ce_n) begin
+                                base_ram_addr <= addr[21:2];
+                            end
+                            else begin
+                                ext_ram_addr <= addr[21:2];
+                            end
+                            state <= READ_OE;
+                        end
+                    end 
+                    else begin
+                    end
                 end
-            end 
+            end
             WRITE_WE: begin
                 if (~base_ram_ce_n) begin
                     base_ram_we_n <= 1'b0;
@@ -157,7 +173,7 @@ always_ff @( posedge clk or posedge rst) begin
                 state <= WRITE_DONE;
             end
             WRITE_DONE: begin
-                done <= 1;
+                sram_done <= 1;
                 state <= INIT;
             end
             READ_OE: begin
@@ -167,11 +183,10 @@ always_ff @( posedge clk or posedge rst) begin
                 else begin
                     ext_ram_oe_n <= 1'b0;
                 end
-                done <= 1;
                 state <= READ_DONE;
             end
             READ_DONE: begin
-                done <= 1;
+                sram_done <= 1;
                 if (~base_ram_ce_n) begin
                     data_out <= base_ram_data_wire;
                 end
@@ -191,13 +206,14 @@ always_ff @( posedge clk or posedge rst) begin
             end
             READ_UART_2: begin
                 data_out <= {24'b0, base_ram_data_wire[7:0]};
-                done <= 1'b1;
+                uart_done <= 1'b1;
                 state <= INIT;
             end
             WRITE_UART_1: begin
-                data_z <= 1'b0;
-                base_ram_data <= data_in;
+                // data_z <= 1'b0;
+                // base_ram_data <= data_in;
                 uart_wrn <= 1'b0;
+                state <= WRITE_UART_2;
             end
             WRITE_UART_2: begin
                 uart_wrn <= 1'b1;
@@ -213,7 +229,7 @@ always_ff @( posedge clk or posedge rst) begin
             WRITE_UART_4: begin
                 if (uart_tsre) begin
                     state <= INIT;
-                    done <= 1'b1;
+                    uart_done <= 1'b1;
                 end
                 else begin
                 end
