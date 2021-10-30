@@ -146,8 +146,18 @@ reg [31:0] sram_addr;
 reg [31:0] data_to_sram;
 reg [31:0] reg_leds;
 wire [31:0] data_from_sram;
-reg doing;
 wire done;
+
+wire data_z;
+wire[31:0] base_ram_data_in;
+wire[31:0] base_ram_data_out;
+wire[31:0] ext_ram_data_in;
+wire[31:0] ext_ram_data_out;
+
+assign base_ram_data = data_z ? 32'bz : base_ram_data_out;
+assign base_ram_data_in = base_ram_data;
+assign ext_ram_data = data_z ? 32'bz : ext_ram_data_out;
+assign ext_ram_data_in = ext_ram_data;
 
 assign leds = reg_leds[15:0];
 assign controler_be = 4'b0;
@@ -203,7 +213,6 @@ always @(posedge clk_11M0592 or posedge reset_btn) begin
             end
             READ_BASE_0: begin
                 controler_sram_ce <= 1;
-                doing <= 0;
                 sram_addr <= init_addr + (cnt << 2);
                 controler_oe <= 1;
                 state <= READ_BASE_1;
@@ -276,14 +285,16 @@ sram sram(
     .sram_done(controler_sram_done),
     .uart_done(controler_uart_done),
 
-    .base_ram_data_wire(base_ram_data),
+    .base_ram_data_in(base_ram_data_in),
+    .base_ram_data_out(base_ram_data_out),
     .base_ram_addr(base_ram_addr),
     .base_ram_be_n(base_ram_be_n),
     .base_ram_ce_n(base_ram_ce_n),
     .base_ram_oe_n(base_ram_oe_n),
     .base_ram_we_n(base_ram_we_n),
 
-    .ext_ram_data_wire(ext_ram_data),
+    .ext_ram_data_in(ext_ram_data_in),
+    .ext_ram_data_out(ext_ram_data_out),
     .ext_ram_addr(ext_ram_addr),
     .ext_ram_be_n(ext_ram_be_n),
     .ext_ram_ce_n(ext_ram_ce_n),
@@ -294,7 +305,9 @@ sram sram(
     .uart_wrn(uart_wrn),
     .uart_rdn(uart_rdn),
     .uart_tbre(uart_tbre),
-    .uart_tsre(uart_tsre)
+    .uart_tsre(uart_tsre),
+
+    .data_z(data_z)
 );
 
 
