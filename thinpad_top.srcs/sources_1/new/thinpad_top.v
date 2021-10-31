@@ -1,5 +1,8 @@
 `default_nettype none
 
+`include "alu.vh"
+`include "ops.vh"
+
 module thinpad_top(
     input wire clk_50M,           //50MHz 时钟输入
     input wire clk_11M0592,       //11.0592MHz 时钟输入（备用，可不用）
@@ -80,22 +83,6 @@ module thinpad_top(
     output wire video_de           //行数据有效信号，用于区分消隐区
 );
 
-localparam GET_ADDR = 4'b0000;
-localparam GET_DATA = 4'b0001;
-localparam WRITE_BASE_0 = 4'b0010;
-localparam WRITE_BASE_1 = 4'b0011;
-localparam READ_BASE_0 = 4'b0100;
-localparam READ_BASE_1 = 4'b0101;
-localparam WRITE_EXT_0 = 4'b0110;
-localparam WRITE_EXT_1 = 4'b0111;
-localparam READ_EXT_0 = 4'b1000;
-localparam READ_EXT_1 = 4'b1001;
-localparam READ_UART = 4'b1010;
-localparam WRITE_UART_0 = 4'b1011;
-localparam WRITE_UART = 4'b1100;
-// localparam WAIT = 4'b1011;
-
-localparam data_len = 4'd10;
 localparam UART_ADDR = 32'h10000000;
 
 /* =========== Demo code begin =========== */
@@ -131,23 +118,15 @@ localparam UART_ADDR = 32'h10000000;
 //     end
 // end
 
-reg controler_oe;
-reg controler_we;
-// reg controler_sram_ce;
-// reg controler_uart_ce;
-wire [3:0] controler_be;
-wire controler_sram_done;
-wire controler_uart_done;
-reg [3:0] state;
-reg [31:0] init_addr;
-reg [31:0] init_data;
-reg [3:0] cnt;
-reg [31:0] sram_addr;
-reg [31:0] data_to_sram;
-reg [31:0] reg_leds;
-wire [31:0] data_from_sram_wire;
-reg[31:0] data_from_sram;
-wire controler_done;
+// reg controler_oe;
+// reg controler_we;
+// wire [3:0] controler_be;
+// reg [3:0] state;
+// reg [31:0] sram_addr;
+// reg [31:0] data_to_sram;
+// wire [31:0] data_from_sram_wire;
+// reg[31:0] data_from_sram;
+// wire controler_done;
 
 wire data_z;
 wire[31:0] base_ram_data_in;
@@ -160,133 +139,30 @@ assign base_ram_data_in = base_ram_data;
 assign ext_ram_data = data_z ? 32'bz : ext_ram_data_out;
 assign ext_ram_data_in = ext_ram_data;
 
-assign leds = reg_leds[15:0];
-assign controler_be = 4'b0;
+reg         mem_oe, mem_we;
+wire[3:0]   mem_be;
+reg[31:0]   mem_address;
+reg[31:0]   mem_data_in;
+wire[31:0]  mem_data_out;
+wire        mem_done;
 
-always @(posedge clk_11M0592 or posedge reset_btn) begin
-    if (reset_btn) begin
-        state <= GET_ADDR;
-        cnt <= 4'b0;
-        init_data <= 32'b0;
-        init_addr <= 32'b0;
-        reg_leds <= 32'b0;
-        controler_oe <= 0;
-        controler_we <= 0;
-        // controler_sram_ce <= 0;
-        // controler_uart_ce <= 0;
-    end
-    else begin
-        case (state)
-            GET_ADDR: begin
-                init_addr <= {10'b0, dip_sw[19:0], 2'b0};
-                sram_addr <= UART_ADDR;
-                controler_oe <= 1;
-                state <= READ_UART;
-            end
-            GET_DATA: begin
-                init_data <= dip_sw;
-                state <= WRITE_BASE_0;
-            end
-            WRITE_BASE_0: begin
-                // controler_sram_ce <= 1;
-                // data_to_sram <= reg_leds;
-                data_to_sram <= data_from_sram;
-                sram_addr <= init_addr + (cnt << 2);
-                controler_oe <= 0;
-                controler_we <= 1;
-                state <= WRITE_BASE_1;
-            end
-            WRITE_BASE_1: begin
-                if (controler_done) begin
-                    // controler_sram_ce <= 0;
-                    controler_we <= 0;
-                    if (cnt == data_len - 1) begin
-                        cnt <= 0;
-                        state <= READ_BASE_0;
-                    end
-                    else begin
-                        cnt <= cnt + 1;
-                        controler_oe <= 1;
-                        sram_addr <= UART_ADDR;
-                        state <= READ_UART;
-                    end
-                end
-                else begin
-                end
-            end
-            READ_BASE_0: begin
-                sram_addr <= init_addr + (cnt << 2);
-                controler_we <= 0;
-                controler_oe <= 1;
-                state <= READ_BASE_1;
-            end
-            READ_BASE_1: begin
-                if (controler_done) begin
-                    data_from_sram <= data_from_sram_wire;
-                    reg_leds <= data_from_sram_wire;
-                    // controler_sram_ce <= 0;
-                    controler_oe <= 0;
-                    if (cnt == data_len) begin
-                        cnt <= 0;
-                        state <= READ_UART;
-                    end
-                    else begin
-                        cnt <= cnt + 1;
-                        controler_we <= 1;
-                        data_to_sram <= data_from_sram_wire;
-                        sram_addr <= UART_ADDR;
-                        state <= WRITE_UART;
-                    end
-                end
-                else begin
-                end
-            end
-            READ_UART: begin
-                if (controler_done) begin
-                    data_from_sram <= data_from_sram_wire;
-                    // controler_uart_ce <= 0;
-                    controler_oe <= 0;
-                    state <= WRITE_BASE_0;
-                end
-                else begin
-                end
-            end
-            // WRITE_UART_0: begin
-            //     controler_we <= 1;
-            //     data_to_sram <= reg_leds;
-            //     sram_addr <= UART_ADDR;
-            //     state <= WRITE_UART;
-            // end
-            WRITE_UART: begin
-                if (controler_done) begin
-                    // controler_uart_ce <= 0;
-                    controler_we <= 0;
-                    state <= READ_BASE_0;
-                end
-                else begin
-                end
-            end
-            default: begin
-                
-            end
-        endcase
-    end
-end
-
+assign mem_be = 4'b0;
 sram sram(
     .clk(clk_11M0592),
     .rst(reset_btn),
 
-    .we(controler_we),
-    .oe(controler_oe),
-    .be(4'b0),
+    .we(mem_we),
+    .oe(mem_oe),
+    .be(mem_be),
     // .sram_ce(controler_sram_ce),
     // .uart_ce(controler_uart_ce),
 
-    .data_in(data_to_sram),
-    .data_out(data_from_sram_wire),
-    .addr(sram_addr),
-    .done(controler_done),
+    // .data_in(data_to_sram),
+    .data_in(mem_data_in),
+    // .data_out(data_from_sram_wire),
+    .data_out(mem_data_out),
+    .addr(mem_address),
+    .done(mem_done),
 
     .base_ram_data_in(base_ram_data_in),
     .base_ram_data_out(base_ram_data_out),
@@ -313,15 +189,203 @@ sram sram(
     .data_z(data_z)
 );
 
+reg[31:0]       reg_instruction;
+    wire[5:0]       reg_s, reg_t, reg_d;
+    wire[2:0]       op;
+    wire[31:0]      imm;
+    wire            imm_select;
+    
+    decoder _decoder(
+        .inst           (reg_instruction),
+        .reg_s          (reg_s),
+        .reg_t          (reg_t),
+        .reg_d          (reg_d),
+        .op             (op),
+        .imm            (imm),
+        .imm_select     (imm_select)
+    );
+    
+    //interface to regfile
+    reg[4:0]            reg_waddr;
+    reg[31:0]           reg_wdata;
+    reg                 reg_we;
+    wire[31:0]          reg_rdata1;
+    wire[31:0]          reg_rdata2;
+    
+    regfile _regfile(
+        .clk            (clk_50M),
+        .rst            (reset_btn),
+        .we             (reg_we),
+        .waddr          (reg_waddr),
+        .wdata          (reg_wdata),
+        
+        .raddr1         (reg_s),
+        .rdata1         (reg_rdata1),
+        .raddr2         (reg_t),
+        .rdata2         (reg_rdata2)
+    );
+    
+    reg[4:0]    exe_reg_d;
+    reg[2:0]    exe_op;
+    reg[31:0]   exe_imm;
+    reg         exe_imm_select;
+    
+    //interface to alu
+    reg[3:0]    alu_op;
+    reg[31:0]   exe_reg_s_val, exe_reg_t_val;
+    wire[31:0]  exe_result;
+    wire[3:0]   exe_flags;
+    always @(*) begin
+        case(exe_op)
+            `OP_LW, `OP_SW, `OP_ADD, `OP_BEQ, `OP_BNE: begin
+                alu_op <= `ADD;
+            end
+            `OP_OR: begin
+                alu_op <= `OR;
+            end
+            `OP_SLL: begin
+                alu_op <= `SLL;
+            end
+            default: begin
+                alu_op <= `ZERO;
+            end
+        endcase
+    end
+    
+    alu _alu(
+        .op(alu_op),
+        .a((exe_op == `OP_BEQ | exe_op == `OP_BNE) ? pc : exe_reg_s_val),
+        .b              (exe_imm_select? exe_imm: exe_reg_t_val),
+        .r              (exe_result),
+        .flags          (exe_flags)
+    );
+    
+    localparam STAGE_IF         = 3'b000;
+    localparam STAGE_ID         = 3'b001;
+    localparam STAGE_EXE        = 3'b010;
+    localparam STAGE_MEM        = 3'b011;
+    localparam STAGE_WB         = 3'b100;
+
+    reg[2:0]        cpu_stage;
+    reg[31:0]       pc;
+    
+    reg             mem_write;
+    
+    always @(posedge clk_50M or posedge reset_btn) begin
+        if (reset_btn) begin
+            cpu_stage <= STAGE_IF;
+            pc <= 32'h0;
+            reg_we <= 1'b0;
+            mem_we <= 0;
+            mem_oe <= 0;
+            mem_write <= 1'b0;
+        end
+        else begin
+            case (cpu_stage)
+            STAGE_IF: begin
+                if (mem_done) begin
+                    cpu_stage <= STAGE_ID;
+                    reg_instruction <= mem_data_out;
+                    mem_oe <= 1'b0;
+                end
+                else begin
+                    mem_address <= pc;
+                    mem_oe <= 1'b1;
+                end
+            end
+            STAGE_ID: begin
+                cpu_stage <= STAGE_EXE;
+                exe_reg_s_val <= reg_rdata1;
+                exe_reg_t_val <= reg_rdata2;
+                exe_reg_d <= reg_d;
+                exe_imm <= imm;
+                exe_imm_select <= imm_select;
+                exe_op <= op;
+            end
+            STAGE_EXE: begin
+                case (exe_op)
+                    `OP_LW: begin
+                        cpu_stage <= STAGE_MEM;
+                        mem_write <= 1'b0;
+                        mem_oe <= 1'b1;
+                        mem_address <= exe_result;
+                    end
+                    `OP_SW: begin
+                        cpu_stage <= STAGE_MEM;
+                        mem_write <= 1'b1;
+                        mem_we <= 1'b1;
+                        mem_address <= exe_result;
+                        mem_data_in <= exe_reg_t_val;
+                    end
+                    `OP_OR, `OP_ADD, `OP_SLL : begin
+                        cpu_stage <= STAGE_WB;
+                        reg_waddr <= reg_d;
+                        reg_wdata <= exe_result;
+                        reg_we <= 1'b1;
+                    end
+                    `OP_BEQ : begin
+                        cpu_stage <= STAGE_IF;
+                        if (exe_reg_s_val == exe_reg_t_val)
+                            pc <= exe_result;
+                        else
+                            pc <= pc + 32'h4;
+                    end
+                    `OP_BNE: begin
+                        cpu_stage <= STAGE_IF;
+                        if (exe_reg_s_val != exe_reg_t_val)
+                            pc <= exe_result;
+                        else
+                            pc <= pc + 32'h4; 
+                    end
+                    default : begin
+                        cpu_stage <= STAGE_EXE; //stop
+                    end
+                endcase                
+            end
+            STAGE_MEM: begin
+                if (mem_done) begin
+                    mem_oe <= 1'b0;
+                    mem_we <= 1'b0;
+                    cpu_stage <= STAGE_WB;
+                    if (~mem_write) begin //for memory read
+                        reg_waddr <= reg_d;
+                        reg_wdata <= mem_data_out;
+                        reg_we <= 1'b1;
+                    end
+                    else begin //for memory write
+                        reg_we <= 1'b0;
+                    end
+                end
+                else begin
+                    if (mem_write) begin
+                        mem_address <= exe_result;
+                        mem_we <= 1'b1;
+                        mem_oe <= 1'b0;
+                    end 
+                    else begin
+                        mem_address <= exe_result;
+                        mem_we <= 1'b0;
+                        mem_oe <= 1'b1;
+                    end
+                end
+            end
+            STAGE_WB: begin
+                cpu_stage <= STAGE_IF;
+                reg_we <= 1'b0;
+                pc <= pc + 32'h4;
+            end
+            endcase
+        end
+    end
 
 // 不使用内存、串口时，禁用其使能信号
 // assign base_ram_ce_n = 1'b1;
 // assign base_ram_oe_n = 1'b1;
 // assign base_ram_we_n = 1'b1;
 
-assign ext_ram_ce_n = 1'b1;
-assign ext_ram_oe_n = 1'b1;
-assign ext_ram_we_n = 1'b1;
+// assign ext_ram_ce_n = 1'b1;
+// assign ext_ram_oe_n = 1'b1;
+// assign ext_ram_we_n = 1'b1;
 
 // assign uart_rdn = 1'b1;
 // assign uart_wrn = 1'b1;
@@ -339,8 +403,6 @@ assign ext_ram_we_n = 1'b1;
 
 // 7段数码管译码器演示，将number用16进制显示在数码管上面
 // wire[7:0] number;
-SEG7_LUT segL(.oSEG1(dpy0), .iDIG(state)); //dpy0是低位数码管
-SEG7_LUT segH(.oSEG1(dpy1), .iDIG(cnt)); //dpy1是高位数码管
 
 // reg[15:0] led_bits;
 // assign leds = led_bits;

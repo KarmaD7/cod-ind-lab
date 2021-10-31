@@ -103,8 +103,12 @@ always_ff @( posedge clk or posedge rst) begin
                 ext_ram_we_n <= 1'b1;
                 uart_rdn <= 1'b1;
                 uart_wrn <= 1'b1;
-                done <= 0;           
-                if (use_uart) begin
+                done <= 0;
+                if (get_uart_state) begin
+                    done <= 1;
+                    state <= INIT;
+                end           
+                else if (use_uart) begin
                     if (~done) begin  
                         base_ram_oe_n <= 1'b1;
                         ext_ram_oe_n <= 1'b1;
@@ -159,6 +163,9 @@ always_ff @( posedge clk or posedge rst) begin
                 else begin
                     ext_ram_we_n <= 1'b0;
                 end
+                state <= WRITE_DONE;
+            end
+            WRITE_DONE: begin
                 done <= 1;
                 state <= INIT;
             end
@@ -169,19 +176,25 @@ always_ff @( posedge clk or posedge rst) begin
                 else begin
                     ext_ram_oe_n <= 1'b0;
                 end
+                state <= READ_DONE;
+                // done <= 1;
+                // state <= INIT;
+            end
+            READ_DONE: begin
                 done <= 1;
                 state <= INIT;
             end
             READ_UART_1: begin
-                if (~uart_dataready) begin
-                    state <= READ_UART_1;
-                end
-                else begin
-                    uart_rdn <= 1'b0;
-                    state <= READ_UART_2;
-                end
+                // if (~uart_dataready) begin
+                //     state <= READ_UART_1;
+                // end
+                // else begin
+                uart_rdn <= 1'b0;
+                state <= READ_UART_2;
+                // end
             end
             READ_UART_2: begin
+                uart_rdn <= 1'b1;
                 done <= 1'b1;
                 state <= INIT; 
             end
@@ -191,23 +204,24 @@ always_ff @( posedge clk or posedge rst) begin
             end
             WRITE_UART_2: begin
                 uart_wrn <= 1'b1;
-                state <= WRITE_UART_3;
+                done <= 1;
+                state <= INIT;
             end
-            WRITE_UART_3: begin
-                if (uart_tbre) begin
-                    state <= WRITE_UART_4;
-                end
-                else begin
-                end
-            end
-            WRITE_UART_4: begin
-                if (uart_tsre) begin
-                    state <= INIT;
-                    done <= 1'b1;
-                end
-                else begin
-                end
-            end
+            // WRITE_UART_3: begin
+            //     if (uart_tbre) begin
+            //         state <= WRITE_UART_4;
+            //     end
+            //     else begin
+            //     end
+            // end
+            // WRITE_UART_4: begin
+            //     if (uart_tsre) begin
+            //         state <= INIT;
+            //         done <= 1'b1;
+            //     end
+            //     else begin
+            //     end
+            // end
             default: begin 
             end 
         endcase

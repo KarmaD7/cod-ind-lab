@@ -34,7 +34,7 @@ module decoder(
                 endcase
             end
             
-            7'b0100011: begin //SW
+            7'b0100011: begin //SW, SB
                 imm = {sign_ext, inst[31:25], inst[11:7]};
                 imm_select = 1'b1;
                 case(inst[14:12])
@@ -42,11 +42,13 @@ module decoder(
                 endcase
             end
             
-            7'b0010011: begin //ORI
+            7'b0010011: begin //ORI, ADDI, SLLI
                 imm = {sign_ext, inst[31:20]};
                 imm_select = 1'b1;
                 case(inst[14:12])
                     3'b110: op = `OP_OR;
+                    3'b001: op = `OP_SLL;
+                    3'b000: op = `OP_ADD;
                 endcase
             end
             
@@ -56,7 +58,7 @@ module decoder(
                 endcase
             end
             
-            7'b1100011: begin //BEQ
+            7'b1100011: begin //BEQ, BNE
                 imm = {
                     sign_ext,
                     inst[7],inst[30:25],inst[11:8],1'b0
@@ -64,6 +66,7 @@ module decoder(
                 imm_select = 1'b1;
                 case(inst[14:12])
                     3'b000: op = `OP_BEQ;
+                    3'b001: op = `OP_BNE;
                 endcase
             end
         endcase 

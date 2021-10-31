@@ -9,3 +9,6 @@ thinpad_top.runs/
 /.Xilinx
 .DS_Store
 .vscode
+*.o
+*.elf
+*.txt
