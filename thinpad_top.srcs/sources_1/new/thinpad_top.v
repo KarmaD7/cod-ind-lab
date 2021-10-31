@@ -133,8 +133,8 @@ localparam UART_ADDR = 32'h10000000;
 
 reg controler_oe;
 reg controler_we;
-reg controler_sram_ce;
-reg controler_uart_ce;
+// reg controler_sram_ce;
+// reg controler_uart_ce;
 wire [3:0] controler_be;
 wire controler_sram_done;
 wire controler_uart_done;
@@ -145,8 +145,9 @@ reg [3:0] cnt;
 reg [31:0] sram_addr;
 reg [31:0] data_to_sram;
 reg [31:0] reg_leds;
-wire [31:0] data_from_sram;
-wire done;
+wire [31:0] data_from_sram_wire;
+reg[31:0] data_from_sram;
+wire controler_done;
 
 wire data_z;
 wire[31:0] base_ram_data_in;
@@ -171,8 +172,8 @@ always @(posedge clk_11M0592 or posedge reset_btn) begin
         reg_leds <= 32'b0;
         controler_oe <= 0;
         controler_we <= 0;
-        controler_sram_ce <= 0;
-        controler_uart_ce <= 0;
+        // controler_sram_ce <= 0;
+        // controler_uart_ce <= 0;
     end
     else begin
         case (state)
@@ -187,15 +188,17 @@ always @(posedge clk_11M0592 or posedge reset_btn) begin
                 state <= WRITE_BASE_0;
             end
             WRITE_BASE_0: begin
-                controler_sram_ce <= 1;
-                data_to_sram <= reg_leds;
+                // controler_sram_ce <= 1;
+                // data_to_sram <= reg_leds;
+                data_to_sram <= data_from_sram;
                 sram_addr <= init_addr + (cnt << 2);
+                controler_oe <= 0;
                 controler_we <= 1;
                 state <= WRITE_BASE_1;
             end
             WRITE_BASE_1: begin
-                if (controler_sram_done) begin
-                    controler_sram_ce <= 0;
+                if (controler_done) begin
+                    // controler_sram_ce <= 0;
                     controler_we <= 0;
                     if (cnt == data_len - 1) begin
                         cnt <= 0;
@@ -212,15 +215,16 @@ always @(posedge clk_11M0592 or posedge reset_btn) begin
                 end
             end
             READ_BASE_0: begin
-                controler_sram_ce <= 1;
                 sram_addr <= init_addr + (cnt << 2);
+                controler_we <= 0;
                 controler_oe <= 1;
                 state <= READ_BASE_1;
             end
             READ_BASE_1: begin
-                if (controler_sram_done) begin
-                    reg_leds <= data_from_sram;
-                    controler_sram_ce <= 0;
+                if (controler_done) begin
+                    data_from_sram <= data_from_sram_wire;
+                    reg_leds <= data_from_sram_wire;
+                    // controler_sram_ce <= 0;
                     controler_oe <= 0;
                     if (cnt == data_len) begin
                         cnt <= 0;
@@ -229,7 +233,7 @@ always @(posedge clk_11M0592 or posedge reset_btn) begin
                     else begin
                         cnt <= cnt + 1;
                         controler_we <= 1;
-                        data_to_sram <= data_from_sram;
+                        data_to_sram <= data_from_sram_wire;
                         sram_addr <= UART_ADDR;
                         state <= WRITE_UART;
                     end
@@ -238,9 +242,9 @@ always @(posedge clk_11M0592 or posedge reset_btn) begin
                 end
             end
             READ_UART: begin
-                if (controler_uart_done) begin
-                    reg_leds <= data_from_sram;
-                    controler_uart_ce <= 0;
+                if (controler_done) begin
+                    data_from_sram <= data_from_sram_wire;
+                    // controler_uart_ce <= 0;
                     controler_oe <= 0;
                     state <= WRITE_BASE_0;
                 end
@@ -254,8 +258,8 @@ always @(posedge clk_11M0592 or posedge reset_btn) begin
             //     state <= WRITE_UART;
             // end
             WRITE_UART: begin
-                if (controler_uart_done) begin
-                    controler_uart_ce <= 0;
+                if (controler_done) begin
+                    // controler_uart_ce <= 0;
                     controler_we <= 0;
                     state <= READ_BASE_0;
                 end
@@ -276,14 +280,13 @@ sram sram(
     .we(controler_we),
     .oe(controler_oe),
     .be(4'b0),
-    .sram_ce(controler_sram_ce),
-    .uart_ce(controler_uart_ce),
+    // .sram_ce(controler_sram_ce),
+    // .uart_ce(controler_uart_ce),
 
     .data_in(data_to_sram),
-    .data_out(data_from_sram),
+    .data_out(data_from_sram_wire),
     .addr(sram_addr),
-    .sram_done(controler_sram_done),
-    .uart_done(controler_uart_done),
+    .done(controler_done),
 
     .base_ram_data_in(base_ram_data_in),
     .base_ram_data_out(base_ram_data_out),
