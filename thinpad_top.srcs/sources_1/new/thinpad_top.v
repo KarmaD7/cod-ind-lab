@@ -191,7 +191,7 @@ sram sram(
 
 reg[31:0]       reg_instruction;
     wire[5:0]       reg_s, reg_t, reg_d;
-    wire[2:0]       op;
+    wire[3:0]       op;
     wire[31:0]      imm;
     wire            imm_select;
     
@@ -226,7 +226,7 @@ reg[31:0]       reg_instruction;
     );
     
     reg[4:0]    exe_reg_d;
-    reg[2:0]    exe_op;
+    reg[3:0]    exe_op;
     reg[31:0]   exe_imm;
     reg         exe_imm_select;
     
@@ -271,7 +271,7 @@ reg[31:0]       reg_instruction;
     
     reg             mem_write;
     
-    always @(posedge clk_50M or posedge reset_btn) begin
+    always @(posedge clk_11M0592 or posedge reset_btn) begin
         if (reset_btn) begin
             cpu_stage <= STAGE_IF;
             pc <= 32'h0;

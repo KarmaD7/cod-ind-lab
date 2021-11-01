@@ -7,7 +7,7 @@ module decoder(
     output wire[4:0]        reg_s,
     output wire[4:0]        reg_t,
     output wire[4:0]        reg_d,
-    output reg[2:0]         op,
+    output reg[3:0]         op,
     output reg[31:0]        imm,
     output reg              imm_select
     );

@@ -79,7 +79,7 @@ logic get_uart_state;
 
 assign base_ram_ce_n = use_uart ? 1 : addr[22]; // 21-2 real address, 1-0 align, 22 0-base, 1-ext
 assign ext_ram_ce_n = use_uart ? 1 : ~addr[22];
-assign base_ram_be_n = 4'b0;
+assign base_ram_be_n = be;
 assign ext_ram_be_n = 4'b0;
 assign use_uart = (addr == 32'h10000000);
 assign get_uart_state = (addr == 32'h10000005);
@@ -113,6 +113,7 @@ always_ff @( posedge clk or posedge rst) begin
                         base_ram_oe_n <= 1'b1;
                         ext_ram_oe_n <= 1'b1;
                         if (we) begin
+                            done <= 0;
                             data_z <= 1'b0;
                             base_ram_data_out <= data_in;
                             state <= WRITE_UART_1;
@@ -163,7 +164,8 @@ always_ff @( posedge clk or posedge rst) begin
                 else begin
                     ext_ram_we_n <= 1'b0;
                 end
-                state <= WRITE_DONE;
+                done <= 1;
+                state <= INIT;
             end
             WRITE_DONE: begin
                 done <= 1;
@@ -176,7 +178,8 @@ always_ff @( posedge clk or posedge rst) begin
                 else begin
                     ext_ram_oe_n <= 1'b0;
                 end
-                state <= READ_DONE;
+                done <= 1;
+                state <= INIT;
                 // done <= 1;
                 // state <= INIT;
             end

@@ -12,5 +12,7 @@ L1:
 output_mem:
   addi t3, t3, 1
   slli t3, t3, 31
-  addi t3, t3, 100
+  addi t3, t3, 0x100
   sw t0, 0(t3)
+end:
+  beq x0, x0, end
