@@ -140,13 +140,12 @@ assign ext_ram_data = data_z ? 32'bz : ext_ram_data_out;
 assign ext_ram_data_in = ext_ram_data;
 
 reg         mem_oe, mem_we;
-wire[3:0]   mem_be;
+reg[3:0]   mem_be;
 reg[31:0]   mem_address;
 reg[31:0]   mem_data_in;
 wire[31:0]  mem_data_out;
 wire        mem_done;
 
-assign mem_be = 4'b0;
 sram sram(
     .clk(clk_11M0592),
     .rst(reset_btn),
@@ -213,7 +212,7 @@ reg[31:0]       reg_instruction;
     wire[31:0]          reg_rdata2;
     
     regfile _regfile(
-        .clk            (clk_50M),
+        .clk            (clk_11M0592),
         .rst            (reset_btn),
         .we             (reg_we),
         .waddr          (reg_waddr),
@@ -237,8 +236,11 @@ reg[31:0]       reg_instruction;
     wire[3:0]   exe_flags;
     always @(*) begin
         case(exe_op)
-            `OP_LW, `OP_SW, `OP_ADD, `OP_BEQ, `OP_BNE: begin
+            `OP_LW, `OP_SW, `OP_ADD, `OP_BEQ, `OP_BNE, `OP_LB, `OP_SB: begin
                 alu_op <= `ADD;
+            end
+            `OP_AND: begin
+                alu_op <= `AND;
             end
             `OP_OR: begin
                 alu_op <= `OR;
@@ -278,6 +280,7 @@ reg[31:0]       reg_instruction;
             reg_we <= 1'b0;
             mem_we <= 0;
             mem_oe <= 0;
+            mem_be <= 4'b0;
             mem_write <= 1'b0;
         end
         else begin
@@ -291,6 +294,7 @@ reg[31:0]       reg_instruction;
                 else begin
                     mem_address <= pc;
                     mem_oe <= 1'b1;
+                    mem_be <= 4'b0;
                 end
             end
             STAGE_ID: begin
@@ -308,16 +312,33 @@ reg[31:0]       reg_instruction;
                         cpu_stage <= STAGE_MEM;
                         mem_write <= 1'b0;
                         mem_oe <= 1'b1;
+                        mem_be <= 4'b0;
                         mem_address <= exe_result;
                     end
                     `OP_SW: begin
                         cpu_stage <= STAGE_MEM;
                         mem_write <= 1'b1;
                         mem_we <= 1'b1;
+                        mem_be <= 4'b0;
                         mem_address <= exe_result;
                         mem_data_in <= exe_reg_t_val;
                     end
-                    `OP_OR, `OP_ADD, `OP_SLL : begin
+                    `OP_LB: begin
+                        cpu_stage <= STAGE_MEM;
+                        mem_write <= 1'b0;
+                        mem_oe <= 1'b1;
+                        mem_be <= 4'b0111; // not used in this lab
+                        mem_address <= exe_result;
+                    end
+                    `OP_SB: begin
+                        cpu_stage <= STAGE_MEM;
+                        mem_write <= 1'b1;
+                        mem_we <= 1'b1;
+                        mem_be <= 4'b0111;
+                        mem_address <= exe_result;
+                        mem_data_in <= exe_reg_t_val;
+                    end
+                    `OP_OR, `OP_ADD, `OP_SLL, `OP_AND : begin
                         cpu_stage <= STAGE_WB;
                         reg_waddr <= reg_d;
                         reg_wdata <= exe_result;

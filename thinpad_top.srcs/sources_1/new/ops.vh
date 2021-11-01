@@ -7,4 +7,5 @@
 `define OP_SB 4'h6
 `define OP_BNE 4'h7
 `define OP_SLL 4'h8
-
+`define OP_AND 4'h9
+`define OP_LB 4'hA

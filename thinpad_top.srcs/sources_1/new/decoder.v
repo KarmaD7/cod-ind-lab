@@ -26,11 +26,12 @@ module decoder(
         imm_select = 1'b0;
         
         case(inst[6:0])
-            7'b0000011: begin //LW
+            7'b0000011: begin //LW, LB
                 imm = {sign_ext, inst[31:20]};
                 imm_select = 1'b1;
                 case(inst[14:12])
                     3'b010: op = `OP_LW;
+                    3'b000: op = `OP_LB;
                 endcase
             end
             
@@ -39,16 +40,18 @@ module decoder(
                 imm_select = 1'b1;
                 case(inst[14:12])
                     3'b010: op = `OP_SW;
+                    3'b000: op = `OP_SB;
                 endcase
             end
             
-            7'b0010011: begin //ORI, ADDI, SLLI
+            7'b0010011: begin //ORI, ADDI, SLLI, ANDI
                 imm = {sign_ext, inst[31:20]};
                 imm_select = 1'b1;
                 case(inst[14:12])
                     3'b110: op = `OP_OR;
                     3'b001: op = `OP_SLL;
                     3'b000: op = `OP_ADD;
+                    3'b111: op = `OP_AND;
                 endcase
             end
             
