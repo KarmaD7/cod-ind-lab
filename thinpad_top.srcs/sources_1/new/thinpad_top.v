@@ -327,14 +327,14 @@ reg[31:0]       reg_instruction;
                         cpu_stage <= STAGE_MEM;
                         mem_write <= 1'b0;
                         mem_oe <= 1'b1;
-                        mem_be <= 4'b0111; // not used in this lab
+                        mem_be <= 4'b1110; // not used in this lab
                         mem_address <= exe_result;
                     end
                     `OP_SB: begin
                         cpu_stage <= STAGE_MEM;
                         mem_write <= 1'b1;
                         mem_we <= 1'b1;
-                        mem_be <= 4'b0111;
+                        mem_be <= 4'b1110;
                         mem_address <= exe_result;
                         mem_data_in <= exe_reg_t_val;
                     end
